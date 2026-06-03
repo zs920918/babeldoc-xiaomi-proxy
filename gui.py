@@ -13,12 +13,46 @@ Usage:
 
 import os
 import sys
+import json
 import subprocess
 import socket
 import time
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
+
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
+DEFAULT_CONFIG = {
+    "api_key": "",
+    "target_url": "http://model.mify.ai.srv/v1",
+    "model": "xiaomi/mimo-v2.5-pro",
+    "lang_in": "en",
+    "lang_out": "zh",
+    "qps": 4,
+    "no_mono": False,
+    "output_dir": "",
+}
+
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+                merged = {**DEFAULT_CONFIG, **cfg}
+                return merged
+        except Exception:
+            pass
+    return dict(DEFAULT_CONFIG)
+
+
+def save_config(cfg):
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def is_port_available(port):
@@ -49,26 +83,28 @@ class TranslatorApp:
 
         self.proxy_process = None
         self.running = False
+        self.config = load_config()
 
         self._build_ui()
 
     def _build_ui(self):
         pad = {"padx": 8, "pady": 3}
+        cfg = self.config
 
         # ---- API Settings ----
         frame_api = ttk.LabelFrame(self.root, text="API Settings", padding=8)
         frame_api.pack(fill="x", padx=8, pady=(8, 4))
 
         ttk.Label(frame_api, text="API Key:").grid(row=0, column=0, sticky="w", **pad)
-        self.var_api_key = tk.StringVar()
+        self.var_api_key = tk.StringVar(value=cfg.get("api_key", ""))
         ttk.Entry(frame_api, textvariable=self.var_api_key, width=55, show="*").grid(row=0, column=1, sticky="ew", **pad)
 
         ttk.Label(frame_api, text="Target URL:").grid(row=1, column=0, sticky="w", **pad)
-        self.var_target_url = tk.StringVar(value="http://model.mify.ai.srv/v1")
+        self.var_target_url = tk.StringVar(value=cfg.get("target_url", "http://model.mify.ai.srv/v1"))
         ttk.Entry(frame_api, textvariable=self.var_target_url, width=55).grid(row=1, column=1, sticky="ew", **pad)
 
         ttk.Label(frame_api, text="Model:").grid(row=2, column=0, sticky="w", **pad)
-        self.var_model = tk.StringVar(value="xiaomi/mimo-v2.5-pro")
+        self.var_model = tk.StringVar(value=cfg.get("model", "xiaomi/mimo-v2.5-pro"))
         combo = ttk.Combobox(frame_api, textvariable=self.var_model, width=52, values=[
             "xiaomi/mimo-v2.5-pro",
             "xiaomi/mimo-v2-flash",
@@ -95,7 +131,8 @@ class TranslatorApp:
         frame_out.pack(fill="x", padx=8, pady=4)
 
         ttk.Label(frame_out, text="Output Dir:").grid(row=0, column=0, sticky="w", **pad)
-        self.var_output = tk.StringVar(value=os.path.join(os.getcwd(), "output"))
+        default_output = cfg.get("output_dir", "") or os.path.join(os.getcwd(), "output")
+        self.var_output = tk.StringVar(value=default_output)
         ttk.Entry(frame_out, textvariable=self.var_output, width=45).grid(row=0, column=1, sticky="ew", **pad)
         ttk.Button(frame_out, text="Browse...", command=self._browse_output).grid(row=0, column=2, **pad)
 
@@ -106,18 +143,18 @@ class TranslatorApp:
         frame_opt.pack(fill="x", padx=8, pady=4)
 
         ttk.Label(frame_opt, text="Source Lang:").grid(row=0, column=0, sticky="w", **pad)
-        self.var_lang_in = tk.StringVar(value="en")
+        self.var_lang_in = tk.StringVar(value=cfg.get("lang_in", "en"))
         ttk.Entry(frame_opt, textvariable=self.var_lang_in, width=8).grid(row=0, column=1, sticky="w", **pad)
 
         ttk.Label(frame_opt, text="Target Lang:").grid(row=0, column=2, sticky="w", **pad)
-        self.var_lang_out = tk.StringVar(value="zh")
+        self.var_lang_out = tk.StringVar(value=cfg.get("lang_out", "zh"))
         ttk.Entry(frame_opt, textvariable=self.var_lang_out, width=8).grid(row=0, column=3, sticky="w", **pad)
 
         ttk.Label(frame_opt, text="QPS:").grid(row=0, column=4, sticky="w", **pad)
-        self.var_qps = tk.IntVar(value=4)
+        self.var_qps = tk.IntVar(value=cfg.get("qps", 4))
         ttk.Entry(frame_opt, textvariable=self.var_qps, width=5).grid(row=0, column=5, sticky="w", **pad)
 
-        self.var_no_mono = tk.BooleanVar()
+        self.var_no_mono = tk.BooleanVar(value=cfg.get("no_mono", False))
         ttk.Checkbutton(frame_opt, text="No mono PDF", variable=self.var_no_mono).grid(row=0, column=6, padx=12)
 
         # ---- Translate Button + Progress ----
@@ -191,6 +228,18 @@ class TranslatorApp:
         if not self.var_api_key.get().strip():
             messagebox.showwarning("No API key", "Please enter your API key.")
             return
+
+        # Save config before starting
+        save_config({
+            "api_key": self.var_api_key.get().strip(),
+            "target_url": self.var_target_url.get().strip(),
+            "model": self.var_model.get().strip(),
+            "lang_in": self.var_lang_in.get().strip(),
+            "lang_out": self.var_lang_out.get().strip(),
+            "qps": self.var_qps.get(),
+            "no_mono": self.var_no_mono.get(),
+            "output_dir": self.var_output.get().strip(),
+        })
 
         self._set_running(True)
         self.log_text.config(state="normal")

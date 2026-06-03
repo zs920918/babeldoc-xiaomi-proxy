@@ -15,6 +15,8 @@ import sys
 import socket
 import time
 
+import httpx
+
 
 def run_cmd(cmd, check=True):
     """Run command, print it, return result."""
@@ -59,6 +61,15 @@ def is_port_available(port):
             return True
         except OSError:
             return False
+
+
+def is_proxy_running(port):
+    """Check if our proxy is actually responding on the port."""
+    try:
+        r = httpx.get(f"http://127.0.0.1:{port}/health", timeout=3)
+        return r.status_code == 200
+    except Exception:
+        return False
 
 
 def wait_for_port(port, timeout=15):
@@ -116,7 +127,16 @@ Examples:
     proxy_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "proxy.py")
 
     try:
-        if is_port_available(args.proxy_port):
+        proxy_started = False
+        if not is_port_available(args.proxy_port):
+            if is_proxy_running(args.proxy_port):
+                print(f"[*] Proxy already running on port {args.proxy_port}")
+                proxy_started = True
+            else:
+                print(f"[*] Port {args.proxy_port} occupied by another process")
+                sys.exit(1)
+
+        if not proxy_started:
             print(f"[*] Starting proxy on port {args.proxy_port}...")
             proxy_process = subprocess.Popen(
                 [sys.executable, proxy_script,
@@ -131,8 +151,6 @@ Examples:
                 proxy_process.terminate()
                 sys.exit(1)
             print(f"[*] Proxy ready on http://127.0.0.1:{args.proxy_port}")
-        else:
-            print(f"[*] Port {args.proxy_port} in use, assuming proxy is running.")
 
         # Step 3: Run BabelDOC
         print("=" * 50)

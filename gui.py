@@ -64,6 +64,16 @@ def is_port_available(port):
             return False
 
 
+def is_proxy_running(port):
+    """Check if our proxy is actually running on the port by hitting /health."""
+    try:
+        import httpx
+        r = httpx.get(f"http://127.0.0.1:{port}/health", timeout=3)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 def wait_for_port(port, timeout=15):
     start = time.time()
     while time.time() - start < timeout:
@@ -292,20 +302,49 @@ class TranslatorApp:
 
             proxy_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "proxy.py")
 
-            if is_port_available(proxy_port):
-                proxy_process = subprocess.Popen(
-                    [sys.executable, proxy_script,
-                     "--port", str(proxy_port),
-                     "--target-url", target_url,
-                     "--api-key", api_key],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-                if not wait_for_port(proxy_port):
-                    raise RuntimeError("Proxy failed to start")
-                self._log(f"  Proxy running on port {proxy_port}")
-            else:
-                self._log(f"  Port {proxy_port} in use, assuming proxy is running")
+            proxy_started = False
+            if not is_port_available(proxy_port):
+                # Port in use - check if it's our proxy
+                if is_proxy_running(proxy_port):
+                    self._log(f"  Proxy already running on port {proxy_port}")
+                    proxy_started = True
+                else:
+                    # Something else on that port, try to kill it
+                    self._log(f"  Port {proxy_port} occupied by another process, attempting to free it...")
+                    try:
+                        result = subprocess.run(
+                            ["netstat", "-ano"],
+                            capture_output=True, text=True
+                        )
+                        for line in result.stdout.splitlines():
+                            if f":{proxy_port}" in line and "LISTENING" in line:
+                                pid = line.strip().split()[-1]
+                                subprocess.run(["taskkill", "/F", "/PID", pid], capture_output=True)
+                                self._log(f"  Killed process {pid} on port {proxy_port}")
+                                break
+                        time.sleep(1)
+                    except Exception as e:
+                        self._log(f"  Warning: could not free port: {e}")
+
+            if not proxy_started:
+                if is_port_available(proxy_port):
+                    proxy_process = subprocess.Popen(
+                        [sys.executable, proxy_script,
+                         "--port", str(proxy_port),
+                         "--target-url", target_url,
+                         "--api-key", api_key],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    if not wait_for_port(proxy_port):
+                        # Check stderr for error
+                        err = proxy_process.stderr.read().decode(errors="replace") if proxy_process.stderr else ""
+                        raise RuntimeError(f"Proxy failed to start. {err[:200]}")
+                    if not is_proxy_running(proxy_port):
+                        raise RuntimeError("Proxy started but health check failed")
+                    self._log(f"  Proxy running on port {proxy_port}")
+                else:
+                    raise RuntimeError(f"Port {proxy_port} is still in use and no proxy is responding")
 
             # Translate each file
             self.root.after(0, lambda: self.var_status.set("Translating..."))

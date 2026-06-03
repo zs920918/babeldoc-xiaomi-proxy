@@ -23,9 +23,22 @@ cd babeldoc-xiaomi-proxy
 # 2. 安装代理依赖（仅 httpx）
 pip install httpx
 
-# 3. 翻译 PDF（首次运行会自动安装 BabelDOC，需要几分钟）
+# 3. 翻译 PDF
 python translate.py 你的文件.pdf --api-key "你的API密钥"
 ```
+
+### 图形界面（推荐）
+
+```bash
+python gui.py
+```
+
+打开后可以：
+- 点击 **Add PDF Files** 选择一个或多个 PDF
+- 填入 API Key
+- 选择输出目录
+- 点击 **Start Translation** 开始翻译
+- 底部实时显示翻译日志
 
 首次运行会自动完成以下安装：
 - 检测并安装 [uv](https://github.com/astral-sh/uv)（Python 包管理器）

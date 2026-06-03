@@ -19,17 +19,29 @@ BabelDOC ──Chat Completions──> localhost:8899 ──Responses API──>
 # 1. 克隆仓库
 git clone https://github.com/zs920918/babeldoc-xiaomi-proxy.git
 cd babeldoc-xiaomi-proxy
+```
 
-# 2. 安装代理依赖（仅 httpx）
-pip install httpx
+### 方式一：双击启动（最简单）
 
-# 3. 翻译 PDF
+直接双击 `run.bat`，会自动安装依赖并打开图形界面。
+
+如果 BabelDOC 还没装过，可以先双击 `install.bat` 一次性装完所有依赖。
+
+### 方式二：命令行
+
+```bash
+# 安装依赖
+pip install httpx uv
+uv tool install --python 3.12 BabelDOC
+
+# 翻译
 python translate.py 你的文件.pdf --api-key "你的API密钥"
 ```
 
-### 图形界面（推荐）
+### 方式三：图形界面
 
 ```bash
+pip install httpx
 python gui.py
 ```
 

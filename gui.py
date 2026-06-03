@@ -220,7 +220,11 @@ class TranslatorApp:
             self._log("[1/3] Checking dependencies...")
 
             # uv
-            uv_ok = subprocess.run(["uv", "--version"], capture_output=True).returncode == 0
+            uv_ok = False
+            try:
+                uv_ok = subprocess.run(["uv", "--version"], capture_output=True).returncode == 0
+            except FileNotFoundError:
+                pass
             if not uv_ok:
                 self._log("  Installing uv...")
                 subprocess.run([sys.executable, "-m", "pip", "install", "uv"], check=True)

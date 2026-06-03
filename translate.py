@@ -24,9 +24,12 @@ def run_cmd(cmd, check=True):
 
 def ensure_uv():
     """Install uv if not available."""
-    if subprocess.run(["uv", "--version"], capture_output=True).returncode == 0:
-        print("[*] uv is already installed.")
-        return
+    try:
+        if subprocess.run(["uv", "--version"], capture_output=True).returncode == 0:
+            print("[*] uv is already installed.")
+            return
+    except FileNotFoundError:
+        pass
     print("[*] Installing uv...")
     run_cmd([sys.executable, "-m", "pip", "install", "uv"])
 

@@ -20,6 +20,13 @@ if errorlevel 1 (
     pip install httpx
 )
 
+REM Install uv if needed
+uv --version >nul 2>&1
+if errorlevel 1 (
+    echo [*] Installing uv...
+    pip install uv
+)
+
 REM Launch GUI
 echo [*] Starting GUI...
 python "%~dp0gui.py"
